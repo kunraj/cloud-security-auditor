@@ -1291,6 +1291,228 @@ def check_iam_groups():
     return findings
 
 
+def check_iam_roles():
+    iam = boto3.client("iam")
+
+    findings = []
+
+    try:
+        response = iam.list_roles()
+
+        for role in response["Roles"]:
+
+            role_name = role["RoleName"]
+            role_arn = role["Arn"]
+
+            # ----------------------------------------
+            # Check trust policy
+            # ----------------------------------------
+
+            try:
+
+                trust_policy_response = iam.get_role(
+                    RoleName=role_name
+                )
+
+                trust_policy = trust_policy_response[
+                    "Role"
+                ]["AssumeRolePolicyDocument"]
+
+                statements = trust_policy.get(
+                    "Statement",
+                    []
+                )
+
+                if isinstance(statements, dict):
+                    statements = [statements]
+
+                wildcard_trust = False
+
+                for statement in statements:
+
+                    principal = statement.get(
+                        "Principal"
+                    )
+
+                    if principal == "*":
+                        wildcard_trust = True
+
+                    elif isinstance(principal, dict):
+
+                        for principal_type in principal.values():
+
+                            if principal_type == "*":
+                                wildcard_trust = True
+
+                            elif isinstance(
+                                principal_type,
+                                list
+                            ) and "*" in principal_type:
+                                wildcard_trust = True
+
+                if wildcard_trust:
+
+                    findings.append({
+                        "name":
+                            f"Wildcard Trust Policy - {role_name}",
+                        "status": "FAIL",
+                        "severity": "CRITICAL",
+                        "description":
+                            f"IAM role {role_name} has a trust "
+                            "policy that allows a wildcard principal.",
+                        "control":
+                            "Identity and Access Management",
+                        "reference":
+                            "AWS IAM Security Best Practices",
+                        "recommendation":
+                            "Restrict the role trust policy "
+                            "to explicitly trusted principals.",
+                        "remediation":
+                            f"Review the trust policy for "
+                            f"{role_name} and remove wildcard "
+                            "principals."
+                    })
+
+                else:
+
+                    findings.append({
+                        "name":
+                            f"Role Trust Policy - {role_name}",
+                        "status": "PASS",
+                        "severity": "NONE",
+                        "description":
+                            f"IAM role {role_name} does not "
+                            "have an obvious wildcard principal "
+                            "in its trust policy.",
+                        "control":
+                            "Identity and Access Management",
+                        "reference":
+                            "AWS IAM Security Best Practices",
+                        "recommendation":
+                            "No action required",
+                        "remediation":
+                            "No remediation required"
+                    })
+
+            except Exception as error:
+
+                findings.append({
+                    "name":
+                        f"Role Trust Audit - {role_name}",
+                    "status": "ERROR",
+                    "severity": "HIGH",
+                    "description":
+                        f"Unable to inspect trust policy: {error}",
+                    "control":
+                        "Identity and Access Management",
+                    "reference":
+                        "AWS IAM Security Best Practices",
+                    "recommendation":
+                        "Verify IAM role inspection permissions.",
+                    "remediation":
+                        "Ensure the auditor can retrieve IAM role details."
+                })
+
+            # ----------------------------------------
+            # Check attached managed policies
+            # ----------------------------------------
+
+            try:
+
+                attached_response = (
+                    iam.list_attached_role_policies(
+                        RoleName=role_name
+                    )
+                )
+
+                for policy in attached_response[
+                    "AttachedPolicies"
+                ]:
+
+                    policy_name = policy["PolicyName"]
+
+                    if policy_name == "AdministratorAccess":
+
+                        findings.append({
+                            "name":
+                                f"AdministratorAccess Role - "
+                                f"{role_name}",
+                            "status": "FAIL",
+                            "severity": "CRITICAL",
+                            "description":
+                                f"IAM role {role_name} has "
+                                "AdministratorAccess.",
+                            "control":
+                                "Least Privilege",
+                            "reference":
+                                "AWS IAM Security Best Practices",
+                            "recommendation":
+                                "Remove AdministratorAccess "
+                                "unless explicitly required.",
+                            "remediation":
+                                "Replace AdministratorAccess "
+                                "with a least-privilege policy."
+                        })
+
+            except Exception as error:
+
+                findings.append({
+                    "name":
+                        f"Role Policy Audit - {role_name}",
+                    "status": "ERROR",
+                    "severity": "HIGH",
+                    "description":
+                        f"Unable to inspect role policies: {error}",
+                    "control":
+                        "Least Privilege",
+                    "reference":
+                        "AWS IAM Security Best Practices",
+                    "recommendation":
+                        "Verify IAM role policy permissions.",
+                    "remediation":
+                        "Ensure the auditor can inspect role policies."
+                })
+
+    except Exception as error:
+
+        findings.append({
+            "name": "IAM Role Audit",
+            "status": "ERROR",
+            "severity": "HIGH",
+            "description":
+                f"Unable to audit IAM roles: {error}",
+            "control":
+                "Identity and Access Management",
+            "reference":
+                "AWS IAM Security Best Practices",
+            "recommendation":
+                "Verify IAM role permissions.",
+            "remediation":
+                "Ensure the auditor can list and inspect IAM roles."
+        })
+
+    if not findings:
+
+        findings.append({
+            "name": "IAM Roles",
+            "status": "PASS",
+            "severity": "NONE",
+            "description":
+                "No obvious IAM role security findings were detected.",
+            "control":
+                "Identity and Access Management",
+            "reference":
+                "AWS IAM Security Best Practices",
+            "recommendation":
+                "No action required",
+            "remediation":
+                "No remediation required"
+        })
+
+    return findings
+
+
+
 
 
 
