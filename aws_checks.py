@@ -820,6 +820,117 @@ def check_cloudtrail():
 
 
 
+def check_s3_encryption():
+    s3 = boto3.client("s3")
+
+    findings = []
+
+    response = s3.list_buckets()
+
+    for bucket in response["Buckets"]:
+
+        bucket_name = bucket["Name"]
+
+        try:
+            encryption = s3.get_bucket_encryption(
+                Bucket=bucket_name
+            )
+
+            rules = encryption[
+                "ServerSideEncryptionConfiguration"
+            ]["Rules"]
+
+            if rules:
+
+                findings.append({
+                    "name":
+                        f"S3 Encryption - {bucket_name}",
+                    "status": "PASS",
+                    "severity": "NONE",
+                    "description":
+                        "Server-side encryption is configured "
+                        "for the S3 bucket.",
+                    "control":
+                        "Data Protection",
+                    "reference":
+                        "AWS S3 Security Best Practices",
+                    "recommendation":
+                        "No action required",
+                    "remediation":
+                        "No remediation required"
+                })
+
+        except s3.exceptions.ClientError as error:
+
+            error_code = error.response[
+                "Error"
+            ]["Code"]
+
+            if error_code == "ServerSideEncryptionConfigurationNotFoundError":
+
+                findings.append({
+                    "name":
+                        f"S3 Encryption - {bucket_name}",
+                    "status": "FAIL",
+                    "severity": "HIGH",
+                    "description":
+                        "Server-side encryption is not "
+                        "configured for the S3 bucket.",
+                    "control":
+                        "Data Protection",
+                    "reference":
+                        "AWS S3 Security Best Practices",
+                    "recommendation":
+                        "Enable server-side encryption.",
+                    "remediation":
+                        "Configure SSE-S3 or SSE-KMS encryption "
+                        "for the bucket."
+                })
+
+            else:
+
+                findings.append({
+                    "name":
+                        f"S3 Encryption - {bucket_name}",
+                    "status": "ERROR",
+                    "severity": "HIGH",
+                    "description":
+                        f"Unable to check encryption: {error}",
+                    "control":
+                        "Data Protection",
+                    "reference":
+                        "AWS S3 Security Best Practices",
+                    "recommendation":
+                        "Verify S3 permissions and configuration.",
+                    "remediation":
+                        "Ensure the auditor can read the bucket "
+                        "encryption configuration."
+                })
+
+    if not findings:
+
+        findings.append({
+            "name": "S3 Encryption",
+            "status": "PASS",
+            "severity": "NONE",
+            "description":
+                "No S3 encryption findings were detected.",
+            "control":
+                "Data Protection",
+            "reference":
+                "AWS S3 Security Best Practices",
+            "recommendation":
+                "No action required",
+            "remediation":
+                "No remediation required"
+        })
+
+    return findings
+
+
+
+
+
 
 
 

@@ -3,7 +3,8 @@ from aws_checks import (
     check_security_groups,
     check_iam_users,
     check_iam_privileges,
-    check_cloudtrail
+    check_cloudtrail,
+    check_s3_encryption
 )
 
 
@@ -143,6 +144,11 @@ findings.extend(iam_privilege_findings)
 
 cloudtrail_findings = check_cloudtrail()
 findings.extend(cloudtrail_findings)
+
+s3_encryption_findings = check_s3_encryption()
+findings.extend(s3_encryption_findings)
+
+
 
 # ==========================================
 # DISPLAY RESULTS
