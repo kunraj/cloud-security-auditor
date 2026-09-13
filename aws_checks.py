@@ -1115,3 +1115,182 @@ def check_ec2_instances():
         })
 
     return findings
+
+
+
+def check_iam_groups():
+    iam = boto3.client("iam")
+
+    findings = []
+
+    try:
+        response = iam.list_groups()
+
+        for group in response["Groups"]:
+
+            group_name = group["GroupName"]
+
+            # Get policies attached directly to the group
+            attached_response = iam.list_attached_group_policies(
+                GroupName=group_name
+            )
+
+            for policy in attached_response["AttachedPolicies"]:
+
+                policy_name = policy["PolicyName"]
+                policy_arn = policy["PolicyArn"]
+
+                # Check AdministratorAccess
+                if policy_name == "AdministratorAccess":
+
+                    findings.append({
+                        "name":
+                            f"AdministratorAccess Group - {group_name}",
+                        "status": "FAIL",
+                        "severity": "CRITICAL",
+                        "description":
+                            f"IAM group {group_name} has the "
+                            "AdministratorAccess policy.",
+                        "control":
+                            "Least Privilege",
+                        "reference":
+                            "AWS IAM Security Best Practices",
+                        "recommendation":
+                            "Remove AdministratorAccess unless "
+                            "administrative access is explicitly required.",
+                        "remediation":
+                            "Replace AdministratorAccess with a "
+                            "least-privilege policy."
+                    })
+
+                    continue
+
+                try:
+
+                    policy_response = iam.get_policy(
+                        PolicyArn=policy_arn
+                    )
+
+                    default_version = policy_response[
+                        "Policy"
+                    ]["DefaultVersionId"]
+
+                    version_response = iam.get_policy_version(
+                        PolicyArn=policy_arn,
+                        VersionId=default_version
+                    )
+
+                    document = version_response[
+                        "PolicyVersion"
+                    ]["Document"]
+
+                    statements = document.get(
+                        "Statement",
+                        []
+                    )
+
+                    if isinstance(statements, dict):
+                        statements = [statements]
+
+                    for statement in statements:
+
+                        actions = statement.get(
+                            "Action",
+                            []
+                        )
+
+                        if isinstance(actions, str):
+                            actions = [actions]
+
+                        if "*" in actions:
+
+                            findings.append({
+                                "name":
+                                    f"Wildcard Group Policy - "
+                                    f"{group_name}",
+                                "status": "FAIL",
+                                "severity": "CRITICAL",
+                                "description":
+                                    f"Group {group_name} has a "
+                                    f"policy ({policy_name}) with "
+                                    "Action:*.",
+                                "control":
+                                    "Least Privilege",
+                                "reference":
+                                    "AWS IAM Security Best Practices",
+                                "recommendation":
+                                    "Replace wildcard permissions "
+                                    "with only required actions.",
+                                "remediation":
+                                    f"Review policy {policy_name} "
+                                    "and remove unnecessary "
+                                    "wildcard permissions."
+                            })
+
+                            break
+
+                except Exception as error:
+
+                    findings.append({
+                        "name":
+                            f"Group Policy Audit - {group_name}",
+                        "status": "ERROR",
+                        "severity": "HIGH",
+                        "description":
+                            f"Unable to inspect policy "
+                            f"{policy_name}: {error}",
+                        "control":
+                            "Least Privilege",
+                        "reference":
+                            "AWS IAM Security Best Practices",
+                        "recommendation":
+                            "Verify IAM policy inspection permissions.",
+                        "remediation":
+                            "Ensure the auditor can retrieve "
+                            "IAM policy versions."
+                    })
+
+    except Exception as error:
+
+        findings.append({
+            "name": "IAM Group Audit",
+            "status": "ERROR",
+            "severity": "HIGH",
+            "description":
+                f"Unable to audit IAM groups: {error}",
+            "control":
+                "Identity and Access Management",
+            "reference":
+                "AWS IAM Security Best Practices",
+            "recommendation":
+                "Verify IAM group permissions.",
+            "remediation":
+                "Ensure the auditor has permission to "
+                "list groups and inspect group policies."
+        })
+
+    if not findings:
+
+        findings.append({
+            "name": "IAM Groups",
+            "status": "PASS",
+            "severity": "NONE",
+            "description":
+                "No obvious excessive privileges were "
+                "detected in IAM group policies.",
+            "control":
+                "Least Privilege",
+            "reference":
+                "AWS IAM Security Best Practices",
+            "recommendation":
+                "No action required",
+            "remediation":
+                "No remediation required"
+        })
+
+    return findings
+
+
+
+
+

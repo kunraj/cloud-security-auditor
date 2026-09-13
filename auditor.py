@@ -3,10 +3,12 @@ from aws_checks import (
     check_security_groups,
     check_iam_users,
     check_iam_privileges,
+    check_iam_groups,
     check_cloudtrail,
     check_s3_encryption,
     check_ec2_instances
 )
+
 
 
 
@@ -140,7 +142,8 @@ findings.extend(iam_findings)
 iam_privilege_findings = check_iam_privileges()
 findings.extend(iam_privilege_findings)
 
-
+iam_group_findings = check_iam_groups()
+findings.extend(iam_group_findings)
 
 cloudtrail_findings = check_cloudtrail()
 findings.extend(cloudtrail_findings)
@@ -151,6 +154,9 @@ findings.extend(s3_encryption_findings)
 
 ec2_findings = check_ec2_instances()
 findings.extend(ec2_findings)
+
+
+
 
 
 
