@@ -929,6 +929,152 @@ def check_s3_encryption():
 
 
 
+def check_ec2_instances():
+    ec2 = boto3.client("ec2")
+
+    findings = []
+
+    regions_response = ec2.describe_regions(
+        AllRegions=False
+    )
+
+    regions = [
+        region["RegionName"]
+        for region in regions_response["Regions"]
+    ]
+
+    for region_name in regions:
+
+        print(f"Scanning EC2 instances in {region_name}...")
+
+        regional_ec2 = boto3.client(
+            "ec2",
+            region_name=region_name
+        )
+
+        response = regional_ec2.describe_instances()
+
+        for reservation in response["Reservations"]:
+
+            for instance in reservation["Instances"]:
+
+                instance_id = instance["InstanceId"]
+                state = instance["State"]["Name"]
+
+                # Ignore terminated instances
+                if state == "terminated":
+                    continue
+
+                # ----------------------------------------
+                # Check public IPv4
+                # ----------------------------------------
+
+                public_ip = instance.get("PublicIpAddress")
+
+                if public_ip:
+
+                    findings.append({
+                        "name":
+                            f"EC2 Public IP - {instance_id}",
+                        "status": "WARNING",
+                        "severity": "MEDIUM",
+                        "description":
+                            f"EC2 instance {instance_id} "
+                            f"in {region_name} has public IP "
+                            f"{public_ip}.",
+                        "control":
+                            "Network Security",
+                        "reference":
+                            "AWS EC2 Security Best Practices",
+                        "recommendation":
+                            "Verify that direct Internet exposure "
+                            "is required.",
+                        "remediation":
+                            "Remove unnecessary public exposure "
+                            "and use private networking where possible."
+                    })
+
+                # ----------------------------------------
+                # Check IMDS configuration
+                # ----------------------------------------
+
+                metadata_options = instance.get(
+                    "MetadataOptions",
+                    {}
+                )
+
+                http_tokens = metadata_options.get(
+                    "HttpTokens"
+                )
+
+                if http_tokens != "required":
+
+                    findings.append({
+                        "name":
+                            f"EC2 IMDSv2 - {instance_id}",
+                        "status": "FAIL",
+                        "severity": "HIGH",
+                        "description":
+                            f"EC2 instance {instance_id} "
+                            f"in {region_name} does not require "
+                            "IMDSv2.",
+                        "control":
+                            "Instance Security",
+                        "reference":
+                            "AWS EC2 Security Best Practices",
+                        "recommendation":
+                            "Require IMDSv2 for the instance.",
+                        "remediation":
+                            "Configure the instance metadata service "
+                            "to require IMDSv2."
+                    })
+
+                else:
+
+                    findings.append({
+                        "name":
+                            f"EC2 IMDSv2 - {instance_id}",
+                        "status": "PASS",
+                        "severity": "NONE",
+                        "description":
+                            f"EC2 instance {instance_id} "
+                            "requires IMDSv2.",
+                        "control":
+                            "Instance Security",
+                        "reference":
+                            "AWS EC2 Security Best Practices",
+                        "recommendation":
+                            "No action required",
+                        "remediation":
+                            "No remediation required"
+                    })
+
+    if not findings:
+
+        findings.append({
+            "name": "EC2 Security",
+            "status": "PASS",
+            "severity": "NONE",
+            "description":
+                "No EC2 security findings were detected.",
+            "control":
+                "Instance Security",
+            "reference":
+                "AWS EC2 Security Best Practices",
+            "recommendation":
+                "No action required",
+            "remediation":
+                "No remediation required"
+        })
+
+    return findings
+
+
+
+
+
+
+
 
 
 

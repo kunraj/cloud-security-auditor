@@ -4,9 +4,9 @@ from aws_checks import (
     check_iam_users,
     check_iam_privileges,
     check_cloudtrail,
-    check_s3_encryption
+    check_s3_encryption,
+    check_ec2_instances
 )
-
 
 
 
@@ -147,6 +147,10 @@ findings.extend(cloudtrail_findings)
 
 s3_encryption_findings = check_s3_encryption()
 findings.extend(s3_encryption_findings)
+
+
+ec2_findings = check_ec2_instances()
+findings.extend(ec2_findings)
 
 
 
