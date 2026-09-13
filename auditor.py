@@ -31,28 +31,116 @@ from checks import (
 # RISK ENGINE
 # ==========================================
 
-def calculate_score(findings):
 
+def calculate_score(findings):
     score = 100
 
     for finding in findings:
 
-        if finding["severity"] == "CRITICAL":
+        severity = finding.get("severity")
+
+        if severity == "CRITICAL":
             score -= 30
 
-        elif finding["severity"] == "HIGH":
+        elif severity == "HIGH":
             score -= 20
 
-        elif finding["severity"] == "MEDIUM":
+        elif severity == "MEDIUM":
             score -= 10
 
-        elif finding["severity"] == "LOW":
+        elif severity == "LOW":
             score -= 5
 
     if score < 0:
         score = 0
 
     return score
+
+def generate_risk_summary(findings):
+
+    summary = {
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "pass": 0,
+        "info": 0,
+        "error": 0
+    }
+
+    for finding in findings:
+
+        severity = finding.get(
+            "severity",
+            ""
+        ).upper()
+
+        status = finding.get(
+            "status",
+            ""
+        ).upper()
+
+        if status == "ERROR":
+            summary["error"] += 1
+
+        elif status == "PASS":
+            summary["pass"] += 1
+
+        elif severity == "CRITICAL":
+            summary["critical"] += 1
+
+        elif severity == "HIGH":
+            summary["high"] += 1
+
+        elif severity == "MEDIUM":
+            summary["medium"] += 1
+
+        elif severity == "LOW":
+            summary["low"] += 1
+
+        elif status == "INFO":
+            summary["info"] += 1
+
+    return summary
+
+
+def get_top_risks(findings, limit=5):
+
+    severity_order = {
+        "CRITICAL": 4,
+        "HIGH": 3,
+        "MEDIUM": 2,
+        "LOW": 1,
+        "NONE": 0
+    }
+
+    risks = []
+
+    for finding in findings:
+
+        severity = finding.get(
+            "severity",
+            "NONE"
+        )
+
+        if severity == "NONE":
+            continue
+
+        if finding.get("status") == "ERROR":
+            continue
+
+        risks.append(finding)
+
+    risks.sort(
+        key=lambda finding:
+            severity_order.get(
+                finding.get("severity", "NONE"),
+                0
+            ),
+        reverse=True
+    )
+
+    return risks[:limit]
 
 
 # ==========================================
@@ -61,17 +149,34 @@ def calculate_score(findings):
 
 def save_report(findings, score):
 
+    summary = generate_risk_summary(findings)
+    top_risks = get_top_risks(findings)
+
     report = {
         "security_score": score,
         "total_findings": len(findings),
+
+        "risk_summary": summary,
+
+        "top_risks": top_risks,
+
         "findings": findings
     }
 
-    with open("reports/audit_report.json", "w") as file:
-        json.dump(report, file, indent=4)
+    with open(
+        "reports/audit_report.json",
+        "w"
+    ) as file:
 
-    print("Report saved to reports/audit_report.json")
+        json.dump(
+            report,
+            file,
+            indent=4
+        )
 
+    print(
+        "Report saved to reports/audit_report.json"
+    )
 
 # ==========================================
 # CSV REPORT GENERATOR
@@ -193,9 +298,36 @@ for finding in findings:
 
 score = calculate_score(findings)
 
+summary = generate_risk_summary(findings)
+top_risks = get_top_risks(findings)
+
 print("----------------------------------------")
 print("SECURITY SCORE:", score, "/ 100")
 print("----------------------------------------")
+
+print("\nRISK SUMMARY")
+print("----------------------------------------")
+
+print("CRITICAL:", summary["critical"])
+print("HIGH:    ", summary["high"])
+print("MEDIUM:  ", summary["medium"])
+print("LOW:     ", summary["low"])
+print("PASS:    ", summary["pass"])
+print("ERROR:   ", summary["error"])
+
+print("\nTOP RISKS")
+print("----------------------------------------")
+
+for number, finding in enumerate(
+    top_risks,
+    start=1
+):
+
+    print(
+        f"{number}. "
+        f"[{finding['severity']}] "
+        f"{finding['name']}"
+    )
 
 save_report(findings, score)
 save_csv_report(findings)
