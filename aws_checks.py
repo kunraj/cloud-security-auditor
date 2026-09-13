@@ -934,120 +934,167 @@ def check_ec2_instances():
 
     findings = []
 
-    regions_response = ec2.describe_regions(
-        AllRegions=False
-    )
+    try:
+        regions_response = ec2.describe_regions(
+            AllRegions=False
+        )
 
-    regions = [
-        region["RegionName"]
-        for region in regions_response["Regions"]
-    ]
+        regions = [
+            region["RegionName"]
+            for region in regions_response["Regions"]
+        ]
+
+    except Exception as error:
+
+        findings.append({
+            "name": "AWS Region Discovery",
+            "status": "ERROR",
+            "severity": "HIGH",
+            "description":
+                f"Unable to retrieve AWS regions: {error}",
+            "control": "Cloud Security Management",
+            "reference": "AWS Security Best Practices",
+            "recommendation":
+                "Verify that the auditor has permission "
+                "to describe AWS regions.",
+            "remediation":
+                "Grant ec2:DescribeRegions permission."
+        })
+
+        return findings
 
     for region_name in regions:
 
-        print(f"Scanning EC2 instances in {region_name}...")
-
-        regional_ec2 = boto3.client(
-            "ec2",
-            region_name=region_name
+        print(
+            f"Scanning EC2 instances in {region_name}..."
         )
 
-        response = regional_ec2.describe_instances()
+        try:
 
-        for reservation in response["Reservations"]:
+            regional_ec2 = boto3.client(
+                "ec2",
+                region_name=region_name
+            )
 
-            for instance in reservation["Instances"]:
+            response = regional_ec2.describe_instances()
 
-                instance_id = instance["InstanceId"]
-                state = instance["State"]["Name"]
+            for reservation in response["Reservations"]:
 
-                # Ignore terminated instances
-                if state == "terminated":
-                    continue
+                for instance in reservation["Instances"]:
 
-                # ----------------------------------------
-                # Check public IPv4
-                # ----------------------------------------
+                    instance_id = instance["InstanceId"]
+                    state = instance["State"]["Name"]
 
-                public_ip = instance.get("PublicIpAddress")
+                    if state == "terminated":
+                        continue
 
-                if public_ip:
+                    # -------------------------------
+                    # Public IPv4 check
+                    # -------------------------------
 
-                    findings.append({
-                        "name":
-                            f"EC2 Public IP - {instance_id}",
-                        "status": "WARNING",
-                        "severity": "MEDIUM",
-                        "description":
-                            f"EC2 instance {instance_id} "
-                            f"in {region_name} has public IP "
-                            f"{public_ip}.",
-                        "control":
-                            "Network Security",
-                        "reference":
-                            "AWS EC2 Security Best Practices",
-                        "recommendation":
-                            "Verify that direct Internet exposure "
-                            "is required.",
-                        "remediation":
-                            "Remove unnecessary public exposure "
-                            "and use private networking where possible."
-                    })
+                    public_ip = instance.get(
+                        "PublicIpAddress"
+                    )
 
-                # ----------------------------------------
-                # Check IMDS configuration
-                # ----------------------------------------
+                    if public_ip:
 
-                metadata_options = instance.get(
-                    "MetadataOptions",
-                    {}
-                )
+                        findings.append({
+                            "name":
+                                f"EC2 Public IP - {instance_id}",
+                            "status": "WARNING",
+                            "severity": "MEDIUM",
+                            "description":
+                                f"EC2 instance {instance_id} "
+                                f"in {region_name} has public "
+                                f"IP {public_ip}.",
+                            "control":
+                                "Network Security",
+                            "reference":
+                                "AWS EC2 Security Best Practices",
+                            "recommendation":
+                                "Verify that direct Internet "
+                                "exposure is required.",
+                            "remediation":
+                                "Remove unnecessary public "
+                                "exposure and use private "
+                                "networking where possible."
+                        })
 
-                http_tokens = metadata_options.get(
-                    "HttpTokens"
-                )
+                    # -------------------------------
+                    # IMDSv2 check
+                    # -------------------------------
 
-                if http_tokens != "required":
+                    metadata_options = instance.get(
+                        "MetadataOptions",
+                        {}
+                    )
 
-                    findings.append({
-                        "name":
-                            f"EC2 IMDSv2 - {instance_id}",
-                        "status": "FAIL",
-                        "severity": "HIGH",
-                        "description":
-                            f"EC2 instance {instance_id} "
-                            f"in {region_name} does not require "
-                            "IMDSv2.",
-                        "control":
-                            "Instance Security",
-                        "reference":
-                            "AWS EC2 Security Best Practices",
-                        "recommendation":
-                            "Require IMDSv2 for the instance.",
-                        "remediation":
-                            "Configure the instance metadata service "
-                            "to require IMDSv2."
-                    })
+                    http_tokens = metadata_options.get(
+                        "HttpTokens"
+                    )
 
-                else:
+                    if http_tokens != "required":
 
-                    findings.append({
-                        "name":
-                            f"EC2 IMDSv2 - {instance_id}",
-                        "status": "PASS",
-                        "severity": "NONE",
-                        "description":
-                            f"EC2 instance {instance_id} "
-                            "requires IMDSv2.",
-                        "control":
-                            "Instance Security",
-                        "reference":
-                            "AWS EC2 Security Best Practices",
-                        "recommendation":
-                            "No action required",
-                        "remediation":
-                            "No remediation required"
-                    })
+                        findings.append({
+                            "name":
+                                f"EC2 IMDSv2 - {instance_id}",
+                            "status": "FAIL",
+                            "severity": "HIGH",
+                            "description":
+                                f"EC2 instance {instance_id} "
+                                f"in {region_name} does not "
+                                "require IMDSv2.",
+                            "control":
+                                "Instance Security",
+                            "reference":
+                                "AWS EC2 Security Best Practices",
+                            "recommendation":
+                                "Require IMDSv2 for the instance.",
+                            "remediation":
+                                "Configure the instance metadata "
+                                "service to require IMDSv2."
+                        })
+
+                    else:
+
+                        findings.append({
+                            "name":
+                                f"EC2 IMDSv2 - {instance_id}",
+                            "status": "PASS",
+                            "severity": "NONE",
+                            "description":
+                                f"EC2 instance {instance_id} "
+                                f"in {region_name} requires IMDSv2.",
+                            "control":
+                                "Instance Security",
+                            "reference":
+                                "AWS EC2 Security Best Practices",
+                            "recommendation":
+                                "No action required",
+                            "remediation":
+                                "No remediation required"
+                        })
+
+        except Exception as error:
+
+            findings.append({
+                "name":
+                    f"EC2 Audit - {region_name}",
+                "status": "ERROR",
+                "severity": "HIGH",
+                "description":
+                    f"Unable to audit EC2 instances in "
+                    f"{region_name}: {error}",
+                "control":
+                    "Cloud Security Management",
+                "reference":
+                    "AWS Security Best Practices",
+                "recommendation":
+                    "Verify EC2 permissions for this region.",
+                "remediation":
+                    "Ensure the auditor has "
+                    "ec2:DescribeInstances permission."
+            })
 
     if not findings:
 
@@ -1068,17 +1115,3 @@ def check_ec2_instances():
         })
 
     return findings
-
-
-
-
-
-
-
-
-
-
-
-
-
-
