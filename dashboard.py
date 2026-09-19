@@ -1,7 +1,7 @@
+import os
 import json
 import pandas as pd
 import streamlit as st
-
 
 # ========================================
 # PAGE CONFIGURATION
@@ -576,3 +576,75 @@ for _, finding in filtered_df.iterrows():
                 "No remediation available"
             )
         )
+
+
+
+
+
+def load_scan_history():
+    history_dir = "reports/history"
+
+    if not os.path.exists(history_dir):
+        return []
+
+    history = []
+
+    for filename in os.listdir(history_dir):
+        if filename.endswith(".json"):
+            filepath = os.path.join(history_dir, filename)
+
+            try:
+                with open(filepath, "r") as file:
+                    data = json.load(file)
+                    history.append(data)
+            except (json.JSONDecodeError, OSError):
+                continue
+
+    history.sort(key=lambda x: x.get("scan_time_utc", ""))
+
+    return history
+
+history = load_scan_history()
+
+st.subheader("Security Score History")
+
+if history:
+    history_df = pd.DataFrame(history)
+
+    history_df["scan_time_utc"] = pd.to_datetime(
+        history_df["scan_time_utc"]
+    )
+
+    history_df = history_df.sort_values("scan_time_utc")
+
+    st.line_chart(
+        history_df.set_index("scan_time_utc")["security_score"]
+    )
+
+    if len(history_df) >= 2:
+        previous_score = history_df.iloc[-2]["security_score"]
+        current_score = history_df.iloc[-1]["security_score"]
+        score_change = current_score - previous_score
+
+        col1, col2, col3 = st.columns(3)
+
+        col1.metric(
+            "Previous Score",
+            previous_score
+        )
+
+        col2.metric(
+            "Current Score",
+            current_score
+        )
+
+        col3.metric(
+            "Score Change",
+            f"{score_change:+.0f}"
+        )
+
+else:
+    st.info("No scan history available yet.")
+
+
+

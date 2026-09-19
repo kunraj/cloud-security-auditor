@@ -12,7 +12,7 @@ from aws_checks import (
 
 
 
-
+import os
 import json
 import csv
 from datetime import datetime, timezone
@@ -88,7 +88,32 @@ def get_aws_account_info():
             "error": str(error)
         }
 
+#===========================================
+#History Scan
+#==========================================
+def save_scan_history(findings, score):
+    os.makedirs("reports/history", exist_ok=True)
 
+    metadata = get_aws_account_info()
+    summary = generate_risk_summary(findings)
+
+    timestamp = datetime.now(timezone.utc)
+    filename = timestamp.strftime("%Y%m%d_%H%M%S") + ".json"
+
+    history_data = {
+        "scan_time_utc": timestamp.isoformat(),
+        "account_id": metadata.get("account_id", "Unknown"),
+        "security_score": score,
+        "total_findings": len(findings),
+        "risk_summary": summary
+    }
+
+    history_path = os.path.join("reports", "history", filename)
+
+    with open(history_path, "w") as file:
+        json.dump(history_data, file, indent=4)
+
+    print(f"Scan history saved: {history_path}")
 # ==========================================
 # REPORT GENERATOR
 # ==========================================
@@ -370,3 +395,4 @@ for number, finding in enumerate(
 
 save_report(findings, score)
 save_csv_report(findings)
+save_scan_history(findings, score)
