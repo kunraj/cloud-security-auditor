@@ -59,7 +59,29 @@ def calculate_score(findings):
 
     return max(score, 0)
 
+#=======================================
+#Calculate Compliance
+#======================================
+def calculate_compliance(findings):
+    """
+    Calculate compliance percentage based on PASS/FAIL findings.
+    ERROR findings are excluded because they could not be evaluated.
+    """
 
+    evaluated = [
+        f for f in findings
+        if f.get("status") in ["PASS", "FAIL"]
+    ]
+
+    if not evaluated:
+        return 0
+
+    passed = sum(
+        1 for f in evaluated
+        if f.get("status") == "PASS"
+    )
+
+    return round((passed / len(evaluated)) * 100, 2)
 
 #========================================
 # AWS Account Info
@@ -104,6 +126,7 @@ def save_scan_history(findings, score):
         "scan_time_utc": timestamp.isoformat(),
         "account_id": metadata.get("account_id", "Unknown"),
         "security_score": score,
+	"compliance_score": calculate_compliance(findings),
         "total_findings": len(findings),
         "risk_summary": summary
     }
@@ -148,6 +171,8 @@ def save_report(findings, score):
         },
 
         "security_score": score,
+
+	"compliance_score": calculate_compliance(findings),
 
         "total_findings": len(findings),
 
@@ -361,7 +386,7 @@ for finding in findings:
 # ==========================================
 
 score = calculate_score(findings)
-
+compliance_score = calculate_compliance(findings)
 summary = generate_risk_summary(findings)
 top_risks = get_top_risks(findings)
 

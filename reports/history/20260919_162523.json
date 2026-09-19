@@ -1,0 +1,16 @@
+{
+    "scan_time_utc": "2026-09-19T16:25:23.451725+00:00",
+    "account_id": "652656941697",
+    "security_score": 20,
+    "compliance_score": 50.0,
+    "total_findings": 11,
+    "risk_summary": {
+        "critical": 0,
+        "high": 3,
+        "medium": 2,
+        "low": 0,
+        "pass": 3,
+        "info": 0,
+        "error": 3
+    }
+}
