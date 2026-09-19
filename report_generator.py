@@ -186,6 +186,13 @@ def generate_html(report):
     </div>
 
     <div class="card">
+         <div>Compliance Score</div>
+         <div class="score">
+             {report.get("compliance_score", 0)}%
+         </div>
+    </div>
+
+    <div class="card">
         <div>Total Findings</div>
         <div class="score">
             {report.get("total_findings", 0)}

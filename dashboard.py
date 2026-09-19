@@ -1,8 +1,9 @@
 import os
 import json
+import subprocess
+
 import pandas as pd
 import streamlit as st
-import subprocess
 
 
 # ========================================
@@ -16,10 +17,6 @@ st.set_page_config(
 )
 
 
-# ========================================
-# REPORT FILE
-# ========================================
-
 REPORT_FILE = "reports/audit_report.json"
 
 
@@ -30,19 +27,53 @@ REPORT_FILE = "reports/audit_report.json"
 def load_report():
 
     try:
-
         with open(REPORT_FILE, "r") as file:
             return json.load(file)
 
     except FileNotFoundError:
-
         return None
 
-    except json.JSONDecodeError:
 
-        st.error("audit_report.json contains invalid JSON.")
+# ========================================
+# LOAD SCAN HISTORY
+# ========================================
 
-        return None
+def load_scan_history():
+
+    history_dir = "reports/history"
+
+    if not os.path.exists(history_dir):
+        return []
+
+    history = []
+
+    for filename in os.listdir(history_dir):
+
+        if filename.endswith(".json"):
+
+            filepath = os.path.join(
+                history_dir,
+                filename
+            )
+
+            try:
+
+                with open(filepath, "r") as file:
+                    data = json.load(file)
+
+                history.append(data)
+
+            except (json.JSONDecodeError, OSError):
+                continue
+
+    history.sort(
+        key=lambda x: x.get(
+            "scan_time_utc",
+            ""
+        )
+    )
+
+    return history
 
 
 # ========================================
@@ -51,40 +82,15 @@ def load_report():
 
 report = load_report()
 
-
-# ========================================
-# HEADER
-# ========================================
-
-st.title("🔐 Cloud Security Auditor")
-
-st.write(
-    "Linux and AWS Security Configuration Assessment"
-)
-
-
-# ========================================
-# CHECK REPORT
-# ========================================
-
 if report is None:
 
     st.error(
         "Audit report not found. "
-        "Run 'python3 auditor.py' first."
+        "Run auditor.py first."
     )
 
     st.stop()
 
-
-# ========================================
-# REPORT DATA
-# ========================================
-
-score = report.get(
-    "security_score",
-    0
-)
 
 metadata = report.get(
     "scan_metadata",
@@ -101,47 +107,43 @@ findings = report.get(
     []
 )
 
+score = report.get(
+    "security_score",
+    0
+)
+
+compliance_score = report.get(
+    "compliance_score",
+    0
+)
+
+history = load_scan_history()
+
 
 # ========================================
-# SCAN INFORMATION
+# HEADER
 # ========================================
 
-st.caption(
-    "Scan Time (UTC): "
-    + str(
-        metadata.get(
-            "scan_time_utc",
-            "Not available"
-        )
-    )
+st.title("🔐 Cloud Security Auditor")
+
+st.write(
+    "Linux and AWS Security Configuration Assessment"
 )
 
 st.caption(
-    "AWS Account: "
-    + str(
-        metadata.get(
-            "account_id",
-            "Not available"
-        )
-    )
+    f"Scan Time (UTC): "
+    f"{metadata.get('scan_time_utc', 'Unknown')}"
 )
 
 st.caption(
-    "Scanner Version: "
-    + str(
-        metadata.get(
-            "scanner_version",
-            "1.0"
-        )
-    )
+    f"AWS Account: "
+    f"{metadata.get('account_id', 'Unknown')}"
 )
 
-
-# ========================================
-# DATAFRAME
-# ========================================
-
-df = pd.DataFrame(findings)
+st.caption(
+    f"Scanner Version: "
+    f"{metadata.get('scanner_version', 'Unknown')}"
+)
 
 
 # ========================================
@@ -152,7 +154,6 @@ st.subheader("Security Overview")
 
 col1, col2, col3, col4, col5 = st.columns(5)
 
-
 with col1:
 
     st.metric(
@@ -160,60 +161,104 @@ with col1:
         f"{score}/100"
     )
 
-
 with col2:
 
     st.metric(
-        "Critical",
-        summary.get(
-            "critical",
-            0
-        )
+        "Compliance Score",
+        f"{compliance_score}%"
     )
-
 
 with col3:
 
     st.metric(
-        "High",
-        summary.get(
-            "high",
-            0
-        )
+        "Critical",
+        summary.get("critical", 0)
     )
-
 
 with col4:
 
     st.metric(
-        "Medium",
-        summary.get(
-            "medium",
-            0
-        )
+        "High",
+        summary.get("high", 0)
     )
-
 
 with col5:
 
     st.metric(
         "Passed",
-        summary.get(
-            "pass",
-            0
-        )
+        summary.get("pass", 0)
     )
 
 
 st.progress(
     max(
         0,
-        min(
-            int(score),
-            100
-        )
+        min(score, 100)
     ) / 100
 )
+
+
+# ========================================
+# SCAN HISTORY
+# ========================================
+
+st.subheader("📈 Security Score History")
+
+if history:
+
+    history_df = pd.DataFrame(history)
+
+    history_df["scan_time_utc"] = pd.to_datetime(
+        history_df["scan_time_utc"]
+    )
+
+    history_df = history_df.sort_values(
+        "scan_time_utc"
+    )
+
+    st.line_chart(
+        history_df.set_index(
+            "scan_time_utc"
+        )["security_score"]
+    )
+
+    if len(history_df) >= 2:
+
+        previous_score = history_df.iloc[-2][
+            "security_score"
+        ]
+
+        current_score = history_df.iloc[-1][
+            "security_score"
+        ]
+
+        score_change = (
+            current_score -
+            previous_score
+        )
+
+        c1, c2, c3 = st.columns(3)
+
+        c1.metric(
+            "Previous Score",
+            previous_score
+        )
+
+        c2.metric(
+            "Current Score",
+            current_score
+        )
+
+        c3.metric(
+            "Score Change",
+            f"{score_change:+.0f}"
+        )
+
+else:
+
+    st.info(
+        "No scan history available yet."
+    )
 
 
 # ========================================
@@ -222,59 +267,30 @@ st.progress(
 
 st.sidebar.header("🔎 Filters")
 
+df = pd.DataFrame(findings)
 
 if not df.empty:
 
-    # ------------------------------------
-    # Make sure required columns exist
-    # ------------------------------------
-
-    if "severity" not in df.columns:
-        df["severity"] = "UNKNOWN"
-
-    if "control" not in df.columns:
-        df["control"] = "Unknown"
-
-    if "finding_id" not in df.columns:
-        df["finding_id"] = "UNKNOWN"
-
-
-    # ------------------------------------
-    # Determine source
-    # ------------------------------------
-
+    # Source
     sources = []
 
     for finding_id in df["finding_id"]:
 
-        finding_id = str(
-            finding_id
-        )
-
-        if finding_id.startswith("AWS"):
-
+        if str(finding_id).startswith("AWS"):
             sources.append("AWS")
 
-        elif finding_id.startswith("LINUX"):
-
+        elif str(finding_id).startswith("LINUX"):
             sources.append("Linux")
 
         else:
-
             sources.append("Other")
-
 
     df["source"] = sources
 
-
-    # ------------------------------------
-    # Severity filter
-    # ------------------------------------
-
+    # Severity
     severities = sorted(
         df["severity"]
         .dropna()
-        .astype(str)
         .unique()
         .tolist()
     )
@@ -285,32 +301,17 @@ if not df.empty:
         default=severities
     )
 
-
-    # ------------------------------------
-    # Source filter
-    # ------------------------------------
-
-    available_sources = sorted(
-        df["source"]
-        .unique()
-        .tolist()
-    )
-
+    # Source
     selected_sources = st.sidebar.multiselect(
         "Source",
-        available_sources,
-        default=available_sources
+        sorted(df["source"].unique()),
+        default=sorted(df["source"].unique())
     )
 
-
-    # ------------------------------------
-    # Control filter
-    # ------------------------------------
-
+    # Control
     controls = sorted(
         df["control"]
         .dropna()
-        .astype(str)
         .unique()
         .tolist()
     )
@@ -321,22 +322,19 @@ if not df.empty:
         default=controls
     )
 
-
-    # ------------------------------------
     # Apply filters
-    # ------------------------------------
-
     filtered_df = df[
-        df["severity"]
-        .astype(str)
-        .isin(selected_severities)
+        df["severity"].isin(
+            selected_severities
+        )
         &
-        df["source"]
-        .isin(selected_sources)
+        df["source"].isin(
+            selected_sources
+        )
         &
-        df["control"]
-        .astype(str)
-        .isin(selected_controls)
+        df["control"].isin(
+            selected_controls
+        )
     ]
 
 else:
@@ -348,24 +346,20 @@ else:
 # SECURITY ANALYTICS
 # ========================================
 
-st.subheader("Security Analytics")
-
+st.subheader("📊 Security Analytics")
 
 if not filtered_df.empty:
 
-    col1, col2 = st.columns(2)
+    c1, c2 = st.columns(2)
 
-
-    with col1:
+    with c1:
 
         st.write(
             "### Findings by Severity"
         )
 
         severity_counts = (
-            filtered_df[
-                "severity"
-            ]
+            filtered_df["severity"]
             .value_counts()
         )
 
@@ -373,17 +367,14 @@ if not filtered_df.empty:
             severity_counts
         )
 
-
-    with col2:
+    with c2:
 
         st.write(
             "### Findings by Source"
         )
 
         source_counts = (
-            filtered_df[
-                "source"
-            ]
+            filtered_df["source"]
             .value_counts()
         )
 
@@ -399,13 +390,12 @@ else:
 
 
 # ========================================
-# FINDINGS TABLE
+# SECURITY FINDINGS
 # ========================================
 
 st.subheader(
     f"Security Findings ({len(filtered_df)})"
 )
-
 
 if not filtered_df.empty:
 
@@ -426,9 +416,7 @@ if not filtered_df.empty:
     ]
 
     st.dataframe(
-        filtered_df[
-            available_columns
-        ],
+        filtered_df[available_columns],
         use_container_width=True,
         hide_index=True
     )
@@ -441,18 +429,15 @@ else:
 
 
 # ========================================
-# TOP RISKS
+# TOP SECURITY RISKS
 # ========================================
 
-st.subheader(
-    "🚨 Top Security Risks"
-)
+st.subheader("🚨 Top Security Risks")
 
 top_risks = report.get(
     "top_risks",
     []
 )
-
 
 if top_risks:
 
@@ -461,35 +446,17 @@ if top_risks:
         start=1
     ):
 
-        finding_id = finding.get(
-            "finding_id",
-            "UNKNOWN"
-        )
-
-        severity = finding.get(
-            "severity",
-            "UNKNOWN"
-        )
-
-        name = finding.get(
-            "name",
-            "Unknown finding"
-        )
-
-        recommendation = finding.get(
-            "recommendation",
-            "No recommendation available"
-        )
-
         st.write(
             f"**{number}. "
-            f"{finding_id} "
-            f"[{severity}] "
-            f"{name}**"
+            f"[{finding.get('severity', 'UNKNOWN')}] "
+            f"{finding.get('name', 'Unknown')}**"
         )
 
         st.caption(
-            recommendation
+            finding.get(
+                "recommendation",
+                "No recommendation available"
+            )
         )
 
 else:
@@ -503,10 +470,7 @@ else:
 # DETAILED FINDINGS
 # ========================================
 
-st.subheader(
-    "📋 Detailed Findings"
-)
-
+st.subheader("📋 Detailed Findings")
 
 for _, finding in filtered_df.iterrows():
 
@@ -524,7 +488,6 @@ for _, finding in filtered_df.iterrows():
         "severity",
         "UNKNOWN"
     )
-
 
     with st.expander(
         f"{finding_id} — "
@@ -580,83 +543,21 @@ for _, finding in filtered_df.iterrows():
         )
 
 
+# ========================================
+# EXPORT REPORTS
+# ========================================
 
-
-
-def load_scan_history():
-    history_dir = "reports/history"
-
-    if not os.path.exists(history_dir):
-        return []
-
-    history = []
-
-    for filename in os.listdir(history_dir):
-        if filename.endswith(".json"):
-            filepath = os.path.join(history_dir, filename)
-
-            try:
-                with open(filepath, "r") as file:
-                    data = json.load(file)
-                    history.append(data)
-            except (json.JSONDecodeError, OSError):
-                continue
-
-    history.sort(key=lambda x: x.get("scan_time_utc", ""))
-
-    return history
-
-history = load_scan_history()
-
-st.subheader("Security Score History")
-
-if history:
-    history_df = pd.DataFrame(history)
-
-    history_df["scan_time_utc"] = pd.to_datetime(
-        history_df["scan_time_utc"]
-    )
-
-    history_df = history_df.sort_values("scan_time_utc")
-
-    st.line_chart(
-        history_df.set_index("scan_time_utc")["security_score"]
-    )
-
-    if len(history_df) >= 2:
-        previous_score = history_df.iloc[-2]["security_score"]
-        current_score = history_df.iloc[-1]["security_score"]
-        score_change = current_score - previous_score
-
-        col1, col2, col3 = st.columns(3)
-
-        col1.metric(
-            "Previous Score",
-            previous_score
-        )
-
-        col2.metric(
-            "Current Score",
-            current_score
-        )
-
-        col3.metric(
-            "Score Change",
-            f"{score_change:+.0f}"
-        )
-
-else:
-    st.info("No scan history available yet.")
-
-
-
-st.subheader("Export Audit Report")
+st.subheader("📥 Export Audit Report")
 
 col1, col2 = st.columns(2)
 
-# JSON report
 try:
-    with open("reports/audit_report.json", "rb") as file:
+
+    with open(
+        "reports/audit_report.json",
+        "rb"
+    ) as file:
+
         json_data = file.read()
 
     col1.download_button(
@@ -665,12 +566,21 @@ try:
         file_name="audit_report.json",
         mime="application/json"
     )
-except FileNotFoundError:
-    col1.warning("JSON report not found.")
 
-# CSV report
+except FileNotFoundError:
+
+    col1.warning(
+        "JSON report not found."
+    )
+
+
 try:
-    with open("reports/audit_report.csv", "rb") as file:
+
+    with open(
+        "reports/audit_report.csv",
+        "rb"
+    ) as file:
+
         csv_data = file.read()
 
     col2.download_button(
@@ -679,31 +589,49 @@ try:
         file_name="audit_report.csv",
         mime="text/csv"
     )
+
 except FileNotFoundError:
-    col2.warning("CSV report not found.")
 
-#=======================================
+    col2.warning(
+        "CSV report not found."
+    )
 
-st.subheader("Professional Audit Report")
 
-st.write(
-    "Generate a formatted HTML security audit report "
-    "from the latest scan results."
+# ========================================
+# PROFESSIONAL HTML REPORT
+# ========================================
+
+st.subheader(
+    "📄 Professional Audit Report"
 )
 
-if st.button("Generate HTML Audit Report"):
+st.write(
+    "Generate a formatted HTML security "
+    "audit report from the latest scan."
+)
+
+
+if st.button(
+    "Generate HTML Audit Report"
+):
 
     result = subprocess.run(
-        ["python3", "report_generator.py"],
+        [
+            "python3",
+            "report_generator.py"
+        ],
         capture_output=True,
         text=True
     )
 
     if result.returncode == 0:
 
-        st.success("HTML audit report generated successfully.")
+        st.success(
+            "HTML audit report generated successfully."
+        )
 
         try:
+
             with open(
                 "reports/security_audit_report.html",
                 "rb"
@@ -720,13 +648,18 @@ if st.button("Generate HTML Audit Report"):
 
         except FileNotFoundError:
 
-            st.error("HTML report file was not found.")
+            st.error(
+                "HTML report file was not found."
+            )
 
     else:
 
-        st.error("Failed to generate HTML report.")
+        st.error(
+            "Failed to generate HTML report."
+        )
 
         if result.stderr:
-            st.code(result.stderr)
 
-
+            st.code(
+                result.stderr
+            )
