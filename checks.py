@@ -14,6 +14,7 @@ def check_firewall():
 
     if "Status: active" in result.stdout:
         return {
+	    "finding_id": "LINUX-001",
             "name": "Firewall",
             "status": "PASS",
             "severity": "NONE",
@@ -26,6 +27,7 @@ def check_firewall():
 
     else:
         return {
+	    "finding_id": "LINUX-001",
             "name": "Firewall",
             "status": "FAIL",
             "severity": "HIGH",
@@ -49,6 +51,7 @@ def check_ssh():
 
     if "PermitRootLogin no" in ssh_config.stdout:
         return {
+	    "finding_id": "LINUX-002",
             "name": "SSH Root Login",
             "status": "PASS",
             "severity": "NONE",
@@ -61,6 +64,7 @@ def check_ssh():
 
     else:
         return {
+	    "finding_id": "LINUX-002",
             "name": "SSH Root Login",
             "status": "WARNING",
             "severity": "MEDIUM",
@@ -87,6 +91,7 @@ def check_users():
 
     if privileged_users == ["root"]:
         return {
+	    "finding_id": "LINUX-003",
             "name": "Privileged Users",
             "status": "PASS",
             "severity": "NONE",
@@ -99,6 +104,7 @@ def check_users():
 
     else:
         return {
+	    "finding_id": "LINUX-003",
             "name": "Privileged Users",
             "status": "WARNING",
             "severity": "HIGH",
@@ -134,6 +140,7 @@ def check_ports():
             if "0.0.0.0:22" in line:
 
                 findings.append({
+		    "finding_id": "LINUX-004",
                     "name": "SSH exposed on all interfaces",
                     "status": "WARNING",
                     "severity": "HIGH",
@@ -144,6 +151,7 @@ def check_ports():
             else:
 
                 findings.append({
+		    "finding_id": "LINUX-004",
                     "name": "SSH listening",
                     "status": "INFO",
                     "severity": "LOW",
@@ -168,6 +176,7 @@ def check_file_permissions():
 
     if not permissions:
         return {
+	    "finding_id": "LINUX-005",
             "name": "Shadow File Permissions",
             "status": "ERROR",
             "severity": "HIGH",
@@ -180,6 +189,7 @@ def check_file_permissions():
 
     if permissions[-3:] == "---":
         return {
+	    "finding_id": "LINUX-005",
             "name": "Shadow File Permissions",
             "status": "PASS",
             "severity": "NONE",
@@ -192,6 +202,7 @@ def check_file_permissions():
 
     else:
         return {
+	    "finding_id": "LINUX-005",
             "name": "Shadow File Permissions",
             "status": "FAIL",
             "severity": "HIGH",

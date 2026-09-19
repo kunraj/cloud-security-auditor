@@ -36,111 +36,28 @@ def calculate_score(findings):
     score = 100
 
     for finding in findings:
+        status = finding.get("status", "").upper()
+        severity = finding.get("severity", "").upper()
 
-        severity = finding.get("severity")
+        # Errors mean the check could not be completed.
+        # They should not reduce the security score.
+        if status == "ERROR":
+            continue
+
+        # Passed checks should not reduce the score.
+        if status == "PASS":
+            continue
 
         if severity == "CRITICAL":
             score -= 30
-
         elif severity == "HIGH":
             score -= 20
-
         elif severity == "MEDIUM":
             score -= 10
-
         elif severity == "LOW":
             score -= 5
 
-    if score < 0:
-        score = 0
-
-    return score
-
-def generate_risk_summary(findings):
-
-    summary = {
-        "critical": 0,
-        "high": 0,
-        "medium": 0,
-        "low": 0,
-        "pass": 0,
-        "info": 0,
-        "error": 0
-    }
-
-    for finding in findings:
-
-        severity = finding.get(
-            "severity",
-            ""
-        ).upper()
-
-        status = finding.get(
-            "status",
-            ""
-        ).upper()
-
-        if status == "ERROR":
-            summary["error"] += 1
-
-        elif status == "PASS":
-            summary["pass"] += 1
-
-        elif severity == "CRITICAL":
-            summary["critical"] += 1
-
-        elif severity == "HIGH":
-            summary["high"] += 1
-
-        elif severity == "MEDIUM":
-            summary["medium"] += 1
-
-        elif severity == "LOW":
-            summary["low"] += 1
-
-        elif status == "INFO":
-            summary["info"] += 1
-
-    return summary
-
-
-def get_top_risks(findings, limit=5):
-
-    severity_order = {
-        "CRITICAL": 4,
-        "HIGH": 3,
-        "MEDIUM": 2,
-        "LOW": 1,
-        "NONE": 0
-    }
-
-    risks = []
-
-    for finding in findings:
-
-        severity = finding.get(
-            "severity",
-            "NONE"
-        )
-
-        if severity == "NONE":
-            continue
-
-        if finding.get("status") == "ERROR":
-            continue
-
-        risks.append(finding)
-
-    risks.sort(
-        key=lambda finding:
-            severity_order.get(
-                finding.get("severity", "NONE"),
-                0
-            ),
-        reverse=True
-    )
-
-    return risks[:limit]
+    return max(score, 0)
 
 
 # ==========================================
@@ -193,6 +110,7 @@ def save_csv_report(findings):
         writer = csv.DictWriter(
             file,
             fieldnames=[
+    "finding_id",
     "name",
     "status",
     "severity",
@@ -209,6 +127,74 @@ def save_csv_report(findings):
         writer.writerows(findings)
 
         print("CSV report saved to reports/audit_report.csv")
+
+
+
+
+def generate_risk_summary(findings):
+    summary = {
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "pass": 0,
+        "info": 0,
+        "error": 0
+    }
+
+    for finding in findings:
+        severity = finding.get("severity", "").upper()
+        status = finding.get("status", "").upper()
+
+        if status == "ERROR":
+            summary["error"] += 1
+        elif status == "PASS":
+            summary["pass"] += 1
+        elif severity == "CRITICAL":
+            summary["critical"] += 1
+        elif severity == "HIGH":
+            summary["high"] += 1
+        elif severity == "MEDIUM":
+            summary["medium"] += 1
+        elif severity == "LOW":
+            summary["low"] += 1
+        elif status == "INFO":
+            summary["info"] += 1
+
+    return summary
+
+
+def get_top_risks(findings, limit=5):
+    severity_order = {
+        "CRITICAL": 4,
+        "HIGH": 3,
+        "MEDIUM": 2,
+        "LOW": 1
+    }
+
+    risks = []
+
+    for finding in findings:
+        status = finding.get("status", "").upper()
+        severity = finding.get("severity", "").upper()
+
+        # Only include actual security findings
+        if status in ["PASS", "ERROR"]:
+            continue
+
+        if severity not in severity_order:
+            continue
+
+        risks.append(finding)
+
+    risks.sort(
+        key=lambda x: severity_order.get(
+            x.get("severity", "").upper(), 0
+        ),
+        reverse=True
+    )
+
+    return risks[:limit]
 
 
 # ==========================================
