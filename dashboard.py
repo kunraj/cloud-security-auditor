@@ -2,6 +2,8 @@ import os
 import json
 import pandas as pd
 import streamlit as st
+import subprocess
+
 
 # ========================================
 # PAGE CONFIGURATION
@@ -680,8 +682,51 @@ try:
 except FileNotFoundError:
     col2.warning("CSV report not found.")
 
+#=======================================
 
+st.subheader("Professional Audit Report")
 
+st.write(
+    "Generate a formatted HTML security audit report "
+    "from the latest scan results."
+)
 
+if st.button("Generate HTML Audit Report"):
+
+    result = subprocess.run(
+        ["python3", "report_generator.py"],
+        capture_output=True,
+        text=True
+    )
+
+    if result.returncode == 0:
+
+        st.success("HTML audit report generated successfully.")
+
+        try:
+            with open(
+                "reports/security_audit_report.html",
+                "rb"
+            ) as file:
+
+                html_report = file.read()
+
+            st.download_button(
+                label="Download HTML Audit Report",
+                data=html_report,
+                file_name="security_audit_report.html",
+                mime="text/html"
+            )
+
+        except FileNotFoundError:
+
+            st.error("HTML report file was not found.")
+
+    else:
+
+        st.error("Failed to generate HTML report.")
+
+        if result.stderr:
+            st.code(result.stderr)
 
 

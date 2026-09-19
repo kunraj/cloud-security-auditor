@@ -1,0 +1,348 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Cloud Security Audit Report</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            background: #f4f6f8;
+            color: #222;
+        }
+
+        .header {
+            background: #1f2937;
+            color: white;
+            padding: 30px;
+            border-radius: 10px;
+        }
+
+        .header h1 {
+            margin: 0;
+        }
+
+        .metadata {
+            margin-top: 15px;
+            font-size: 14px;
+        }
+
+        .cards {
+            display: flex;
+            gap: 15px;
+            margin: 25px 0;
+            flex-wrap: wrap;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            min-width: 150px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .score {
+            font-size: 32px;
+            font-weight: bold;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
+
+        th, td {
+            padding: 12px;
+            border: 1px solid #ddd;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        th {
+            background: #1f2937;
+            color: white;
+        }
+
+        .severity {
+            padding: 5px 9px;
+            border-radius: 5px;
+            font-weight: bold;
+            font-size: 12px;
+        }
+
+        .critical {
+            background: #7f1d1d;
+            color: white;
+        }
+
+        .high {
+            background: #dc2626;
+            color: white;
+        }
+
+        .medium {
+            background: #f59e0b;
+            color: black;
+        }
+
+        .low {
+            background: #facc15;
+            color: black;
+        }
+
+        .info {
+            background: #93c5fd;
+            color: black;
+        }
+
+        .pass {
+            background: #86efac;
+            color: black;
+        }
+
+        .footer {
+            margin-top: 30px;
+            font-size: 13px;
+            color: #666;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="header">
+    <h1>Cloud Security Audit Report</h1>
+
+    <div class="metadata">
+        <strong>Scanner:</strong>
+        Cloud Security Configuration & Hardening Auditor<br>
+
+        <strong>Version:</strong>
+        1.0<br>
+
+        <strong>Scan Time (UTC):</strong>
+        2026-09-19T15:52:27.423183+00:00<br>
+
+        <strong>AWS Account:</strong>
+        652656941697
+    </div>
+</div>
+
+<div class="cards">
+
+    <div class="card">
+        <div>Security Score</div>
+        <div class="score">
+            20
+        </div>
+    </div>
+
+    <div class="card">
+        <div>Total Findings</div>
+        <div class="score">
+            11
+        </div>
+    </div>
+
+    <div class="card">
+        <div>Critical</div>
+        <div class="score">
+            0
+        </div>
+    </div>
+
+    <div class="card">
+        <div>High</div>
+        <div class="score">
+            3
+        </div>
+    </div>
+
+    <div class="card">
+        <div>Medium</div>
+        <div class="score">
+            2
+        </div>
+    </div>
+
+    <div class="card">
+        <div>Passed</div>
+        <div class="score">
+            3
+        </div>
+    </div>
+
+</div>
+
+<h2>Security Findings</h2>
+
+<table>
+    <thead>
+        <tr>
+            <th>Finding ID</th>
+            <th>Name</th>
+            <th>Severity</th>
+            <th>Status</th>
+            <th>Description</th>
+            <th>Recommendation</th>
+        </tr>
+    </thead>
+
+    <tbody>
+        
+        <tr>
+            <td>LINUX-001</td>
+            <td>Firewall</td>
+            <td>
+                <span class="severity high">
+                    HIGH
+                </span>
+            </td>
+            <td>FAIL</td>
+            <td>The host firewall is disabled.</td>
+            <td>Enable the firewall and configure appropriate inbound rules</td>
+        </tr>
+        
+        <tr>
+            <td>LINUX-002</td>
+            <td>SSH Root Login</td>
+            <td>
+                <span class="severity medium">
+                    MEDIUM
+                </span>
+            </td>
+            <td>WARNING</td>
+            <td>Direct SSH root login may be permitted.</td>
+            <td>Disable direct SSH root login</td>
+        </tr>
+        
+        <tr>
+            <td>LINUX-003</td>
+            <td>Privileged Users</td>
+            <td>
+                <span class="severity none">
+                    NONE
+                </span>
+            </td>
+            <td>PASS</td>
+            <td>Only the root account has UID 0.</td>
+            <td>No action required</td>
+        </tr>
+        
+        <tr>
+            <td>LINUX-005</td>
+            <td>Shadow File Permissions</td>
+            <td>
+                <span class="severity none">
+                    NONE
+                </span>
+            </td>
+            <td>PASS</td>
+            <td>The /etc/shadow file is protected from other users.</td>
+            <td>No action required</td>
+        </tr>
+        
+        <tr>
+            <td>AWS-SG-002</td>
+            <td>SSH Exposed - Kali Linux-2026.2-amd64-AutogenByAWSMP--1</td>
+            <td>
+                <span class="severity high">
+                    HIGH
+                </span>
+            </td>
+            <td>FAIL</td>
+            <td>SSH port 22 in ap-south-1 is accessible from 0.0.0.0/0.</td>
+            <td>Restrict SSH access to trusted IP addresses.</td>
+        </tr>
+        
+        <tr>
+            <td>AWS-IAM-001</td>
+            <td>IAM MFA - cloud-security-auditor</td>
+            <td>
+                <span class="severity high">
+                    HIGH
+                </span>
+            </td>
+            <td>FAIL</td>
+            <td>IAM user cloud-security-auditor does not have MFA enabled.</td>
+            <td>Enable MFA for the IAM user.</td>
+        </tr>
+        
+        <tr>
+            <td>AWS-IAM-002</td>
+            <td>Active Access Key - cloud-security-auditor</td>
+            <td>
+                <span class="severity medium">
+                    MEDIUM
+                </span>
+            </td>
+            <td>WARNING</td>
+            <td>IAM user cloud-security-auditor has an active access key.</td>
+            <td>Review whether the access key is still required.</td>
+        </tr>
+        
+        <tr>
+            <td>AWS-IAM-005</td>
+            <td>IAM Group Audit</td>
+            <td>
+                <span class="severity high">
+                    HIGH
+                </span>
+            </td>
+            <td>ERROR</td>
+            <td>Unable to audit IAM groups: An error occurred (AccessDenied) when calling the ListGroups operation: User: arn:aws:iam::652656941697:user/cloud-security-auditor is not authorized to perform: iam:ListGroups on resource: arn:aws:iam::652656941697:group/ because no identity-based policy allows the iam:ListGroups action</td>
+            <td>Verify IAM group permissions.</td>
+        </tr>
+        
+        <tr>
+            <td>AWS-IAM-007</td>
+            <td>IAM Role Audit</td>
+            <td>
+                <span class="severity high">
+                    HIGH
+                </span>
+            </td>
+            <td>ERROR</td>
+            <td>Unable to list IAM roles: An error occurred (AccessDenied) when calling the ListRoles operation: User: arn:aws:iam::652656941697:user/cloud-security-auditor is not authorized to perform: iam:ListRoles on resource: arn:aws:iam::652656941697:role/ because no identity-based policy allows the iam:ListRoles action</td>
+            <td>Verify IAM role permissions.</td>
+        </tr>
+        
+        <tr>
+            <td>AWS-CT-001</td>
+            <td>CloudTrail Audit</td>
+            <td>
+                <span class="severity high">
+                    HIGH
+                </span>
+            </td>
+            <td>ERROR</td>
+            <td>Unable to audit CloudTrail: An error occurred (AccessDeniedException) when calling the DescribeTrails operation: User: arn:aws:iam::652656941697:user/cloud-security-auditor is not authorized to perform: cloudtrail:DescribeTrails because no identity-based policy allows the cloudtrail:DescribeTrails action</td>
+            <td>Verify CloudTrail permissions.</td>
+        </tr>
+        
+        <tr>
+            <td>AWS-EC2-000</td>
+            <td>EC2 Security</td>
+            <td>
+                <span class="severity none">
+                    NONE
+                </span>
+            </td>
+            <td>PASS</td>
+            <td>No EC2 security findings were detected.</td>
+            <td>No action required</td>
+        </tr>
+        
+    </tbody>
+</table>
+
+<div class="footer">
+    Generated by Cloud Security Configuration & Hardening Auditor
+</div>
+
+</body>
+</html>
