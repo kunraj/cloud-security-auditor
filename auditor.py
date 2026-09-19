@@ -1,3 +1,4 @@
+from compliance import CIS_CONTROLS
 from aws_checks import (
     check_s3_buckets,
     check_security_groups,
@@ -82,6 +83,23 @@ def calculate_compliance(findings):
     )
 
     return round((passed / len(evaluated)) * 100, 2)
+
+#========================================
+#Complicance
+#========================================
+def enrich_findings_with_compliance(findings):
+    for finding in findings:
+        finding_id = finding.get("finding_id")
+
+        control_info = CIS_CONTROLS.get(finding_id)
+
+        if control_info:
+            finding["framework"] = control_info["framework"]
+            finding["control_title"] = control_info["title"]
+            finding["control_description"] = control_info["description"]
+
+    return findings
+
 
 #========================================
 # AWS Account Info
@@ -204,6 +222,21 @@ def save_report(findings, score):
 
 def save_csv_report(findings):
 
+    fieldnames = [
+        "finding_id",
+        "name",
+        "status",
+        "severity",
+        "control",
+        "framework",
+        "control_title",
+        "control_description",
+        "description",
+        "reference",
+        "recommendation",
+        "remediation"
+    ]
+
     with open(
         "reports/audit_report.csv",
         "w",
@@ -212,25 +245,18 @@ def save_csv_report(findings):
 
         writer = csv.DictWriter(
             file,
-            fieldnames=[
-    "finding_id",
-    "name",
-    "status",
-    "severity",
-    "description",
-    "control",
-    "reference",
-    "recommendation",
-    "remediation"
-]
+            fieldnames=fieldnames,
+            extrasaction="ignore"
         )
 
         writer.writeheader()
 
-        writer.writerows(findings)
+        for finding in findings:
+            writer.writerow(finding)
 
-        print("CSV report saved to reports/audit_report.csv")
-
+    print(
+        "CSV report saved to reports/audit_report.csv"
+    )
 
 
 
@@ -384,7 +410,7 @@ for finding in findings:
 # ==========================================
 # SECURITY SCORE
 # ==========================================
-
+findings = enrich_findings_with_compliance(findings)
 score = calculate_score(findings)
 compliance_score = calculate_compliance(findings)
 summary = generate_risk_summary(findings)
