@@ -648,3 +648,40 @@ else:
 
 
 
+st.subheader("Export Audit Report")
+
+col1, col2 = st.columns(2)
+
+# JSON report
+try:
+    with open("reports/audit_report.json", "rb") as file:
+        json_data = file.read()
+
+    col1.download_button(
+        label="Download JSON Report",
+        data=json_data,
+        file_name="audit_report.json",
+        mime="application/json"
+    )
+except FileNotFoundError:
+    col1.warning("JSON report not found.")
+
+# CSV report
+try:
+    with open("reports/audit_report.csv", "rb") as file:
+        csv_data = file.read()
+
+    col2.download_button(
+        label="Download CSV Report",
+        data=csv_data,
+        file_name="audit_report.csv",
+        mime="text/csv"
+    )
+except FileNotFoundError:
+    col2.warning("CSV report not found.")
+
+
+
+
+
+
