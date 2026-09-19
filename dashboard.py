@@ -1,13 +1,11 @@
 import json
-import os
-
 import pandas as pd
 import streamlit as st
 
 
-# ============================================================
+# ========================================
 # PAGE CONFIGURATION
-# ============================================================
+# ========================================
 
 st.set_page_config(
     page_title="Cloud Security Auditor",
@@ -16,76 +14,79 @@ st.set_page_config(
 )
 
 
+# ========================================
+# REPORT FILE
+# ========================================
+
 REPORT_FILE = "reports/audit_report.json"
 
 
-# ============================================================
+# ========================================
 # LOAD REPORT
-# ============================================================
+# ========================================
 
 def load_report():
-
-    if not os.path.exists(REPORT_FILE):
-        return None
 
     try:
 
         with open(REPORT_FILE, "r") as file:
             return json.load(file)
 
+    except FileNotFoundError:
+
+        return None
+
     except json.JSONDecodeError:
+
+        st.error("audit_report.json contains invalid JSON.")
 
         return None
 
 
+# ========================================
+# LOAD DATA
+# ========================================
+
 report = load_report()
 
 
-# ============================================================
+# ========================================
 # HEADER
-# ============================================================
+# ========================================
 
 st.title("🔐 Cloud Security Auditor")
 
-st.caption(
-    "Linux and AWS Security Configuration "
-    "Assessment Dashboard"
+st.write(
+    "Linux and AWS Security Configuration Assessment"
 )
 
 
-# ============================================================
-# REPORT VALIDATION
-# ============================================================
+# ========================================
+# CHECK REPORT
+# ========================================
 
 if report is None:
 
     st.error(
-        "Audit report not found or is invalid."
-    )
-
-    st.info(
-        "Run the auditor first:"
-    )
-
-    st.code(
-        "python3 auditor.py"
+        "Audit report not found. "
+        "Run 'python3 auditor.py' first."
     )
 
     st.stop()
 
 
-# ============================================================
+# ========================================
 # REPORT DATA
-# ============================================================
+# ========================================
 
 score = report.get(
     "security_score",
     0
 )
 
-total_findings = report.get(
-    "total_findings",
-    0
+metadata = report.get(
+    "scan_metadata",
+    {}
 )
 
 summary = report.get(
@@ -99,13 +100,56 @@ findings = report.get(
 )
 
 
-# ============================================================
+# ========================================
+# SCAN INFORMATION
+# ========================================
+
+st.caption(
+    "Scan Time (UTC): "
+    + str(
+        metadata.get(
+            "scan_time_utc",
+            "Not available"
+        )
+    )
+)
+
+st.caption(
+    "AWS Account: "
+    + str(
+        metadata.get(
+            "account_id",
+            "Not available"
+        )
+    )
+)
+
+st.caption(
+    "Scanner Version: "
+    + str(
+        metadata.get(
+            "scanner_version",
+            "1.0"
+        )
+    )
+)
+
+
+# ========================================
+# DATAFRAME
+# ========================================
+
+df = pd.DataFrame(findings)
+
+
+# ========================================
 # SECURITY OVERVIEW
-# ============================================================
+# ========================================
 
-st.header("Security Overview")
+st.subheader("Security Overview")
 
-col1, col2, col3, col4, col5, col6 = st.columns(6)
+col1, col2, col3, col4, col5 = st.columns(5)
+
 
 with col1:
 
@@ -114,241 +158,299 @@ with col1:
         f"{score}/100"
     )
 
+
 with col2:
 
     st.metric(
         "Critical",
-        summary.get("critical", 0)
+        summary.get(
+            "critical",
+            0
+        )
     )
+
 
 with col3:
 
     st.metric(
         "High",
-        summary.get("high", 0)
+        summary.get(
+            "high",
+            0
+        )
     )
+
 
 with col4:
 
     st.metric(
         "Medium",
-        summary.get("medium", 0)
+        summary.get(
+            "medium",
+            0
+        )
     )
+
 
 with col5:
 
     st.metric(
         "Passed",
-        summary.get("pass", 0)
-    )
-
-with col6:
-
-    st.metric(
-        "Errors",
-        summary.get("error", 0)
+        summary.get(
+            "pass",
+            0
+        )
     )
 
 
 st.progress(
-    max(0, min(score, 100)) / 100
+    max(
+        0,
+        min(
+            int(score),
+            100
+        )
+    ) / 100
 )
 
 
-st.caption(
-    f"Total findings: {total_findings}"
-)
+# ========================================
+# SIDEBAR FILTERS
+# ========================================
+
+st.sidebar.header("🔎 Filters")
 
 
-# ============================================================
-# FINDINGS DATAFRAME
-# ============================================================
+if not df.empty:
 
-st.header("Security Findings")
+    # ------------------------------------
+    # Make sure required columns exist
+    # ------------------------------------
+
+    if "severity" not in df.columns:
+        df["severity"] = "UNKNOWN"
+
+    if "control" not in df.columns:
+        df["control"] = "Unknown"
+
+    if "finding_id" not in df.columns:
+        df["finding_id"] = "UNKNOWN"
 
 
-if findings:
+    # ------------------------------------
+    # Determine source
+    # ------------------------------------
 
-    dataframe = pd.DataFrame(findings)
+    sources = []
 
-    # Make sure expected columns exist
-    expected_columns = [
-        "finding_id",
-        "name",
-        "status",
-        "severity",
-        "control",
-        "reference",
-        "description",
-        "recommendation",
-        "remediation"
+    for finding_id in df["finding_id"]:
+
+        finding_id = str(
+            finding_id
+        )
+
+        if finding_id.startswith("AWS"):
+
+            sources.append("AWS")
+
+        elif finding_id.startswith("LINUX"):
+
+            sources.append("Linux")
+
+        else:
+
+            sources.append("Other")
+
+
+    df["source"] = sources
+
+
+    # ------------------------------------
+    # Severity filter
+    # ------------------------------------
+
+    severities = sorted(
+        df["severity"]
+        .dropna()
+        .astype(str)
+        .unique()
+        .tolist()
+    )
+
+    selected_severities = st.sidebar.multiselect(
+        "Severity",
+        severities,
+        default=severities
+    )
+
+
+    # ------------------------------------
+    # Source filter
+    # ------------------------------------
+
+    available_sources = sorted(
+        df["source"]
+        .unique()
+        .tolist()
+    )
+
+    selected_sources = st.sidebar.multiselect(
+        "Source",
+        available_sources,
+        default=available_sources
+    )
+
+
+    # ------------------------------------
+    # Control filter
+    # ------------------------------------
+
+    controls = sorted(
+        df["control"]
+        .dropna()
+        .astype(str)
+        .unique()
+        .tolist()
+    )
+
+    selected_controls = st.sidebar.multiselect(
+        "Security Control",
+        controls,
+        default=controls
+    )
+
+
+    # ------------------------------------
+    # Apply filters
+    # ------------------------------------
+
+    filtered_df = df[
+        df["severity"]
+        .astype(str)
+        .isin(selected_severities)
+        &
+        df["source"]
+        .isin(selected_sources)
+        &
+        df["control"]
+        .astype(str)
+        .isin(selected_controls)
     ]
 
-    for column in expected_columns:
+else:
 
-        if column not in dataframe.columns:
-            dataframe[column] = ""
+    filtered_df = df
 
-    # --------------------------------------------------------
-    # Filters
-    # --------------------------------------------------------
 
-    filter_col1, filter_col2, filter_col3 = st.columns(3)
+# ========================================
+# SECURITY ANALYTICS
+# ========================================
 
-    with filter_col1:
+st.subheader("Security Analytics")
 
-        severity_options = [
-            "ALL",
-            "CRITICAL",
-            "HIGH",
-            "MEDIUM",
-            "LOW",
-            "NONE"
-        ]
 
-        selected_severity = st.selectbox(
-            "Filter by Severity",
-            severity_options
+if not filtered_df.empty:
+
+    col1, col2 = st.columns(2)
+
+
+    with col1:
+
+        st.write(
+            "### Findings by Severity"
         )
 
-    with filter_col2:
-
-        status_options = [
-            "ALL"
-        ] + sorted(
-            dataframe["status"].dropna().unique().tolist()
+        severity_counts = (
+            filtered_df[
+                "severity"
+            ]
+            .value_counts()
         )
 
-        selected_status = st.selectbox(
-            "Filter by Status",
-            status_options
+        st.bar_chart(
+            severity_counts
         )
 
-    with filter_col3:
 
-        control_options = [
-            "ALL"
-        ] + sorted(
-            dataframe["control"].dropna().unique().tolist()
+    with col2:
+
+        st.write(
+            "### Findings by Source"
         )
 
-        selected_control = st.selectbox(
-            "Filter by Control",
-            control_options
+        source_counts = (
+            filtered_df[
+                "source"
+            ]
+            .value_counts()
         )
 
-    # --------------------------------------------------------
-    # Apply filters
-    # --------------------------------------------------------
+        st.bar_chart(
+            source_counts
+        )
 
-    filtered_df = dataframe.copy()
+else:
 
-    if selected_severity != "ALL":
+    st.info(
+        "No findings match the selected filters."
+    )
 
-        filtered_df = filtered_df[
-            filtered_df["severity"]
-            == selected_severity
-        ]
 
-    if selected_status != "ALL":
+# ========================================
+# FINDINGS TABLE
+# ========================================
 
-        filtered_df = filtered_df[
-            filtered_df["status"]
-            == selected_status
-        ]
+st.subheader(
+    f"Security Findings ({len(filtered_df)})"
+)
 
-    if selected_control != "ALL":
 
-        filtered_df = filtered_df[
-            filtered_df["control"]
-            == selected_control
-        ]
+if not filtered_df.empty:
 
-    # --------------------------------------------------------
-    # Display table
-    # --------------------------------------------------------
-
-    display_columns = [
+    columns = [
         "finding_id",
         "name",
+        "source",
         "status",
         "severity",
         "control",
         "recommendation"
     ]
 
+    available_columns = [
+        column
+        for column in columns
+        if column in filtered_df.columns
+    ]
+
     st.dataframe(
-        filtered_df[display_columns],
+        filtered_df[
+            available_columns
+        ],
         use_container_width=True,
         hide_index=True
-    )
-
-    st.caption(
-        f"Showing {len(filtered_df)} of "
-        f"{len(dataframe)} findings"
     )
 
 else:
 
     st.success(
-        "No security findings detected."
+        "No findings match the current filters."
     )
 
 
-# ============================================================
-# SEVERITY ANALYSIS
-# ============================================================
-
-st.header("Severity Analysis")
-
-severity_data = {
-    "Critical": summary.get("critical", 0),
-    "High": summary.get("high", 0),
-    "Medium": summary.get("medium", 0),
-    "Low": summary.get("low", 0),
-    "Passed": summary.get("pass", 0)
-}
-
-severity_df = pd.DataFrame(
-    {
-        "Severity": severity_data.keys(),
-        "Count": severity_data.values()
-    }
-)
-
-st.bar_chart(
-    severity_df.set_index("Severity")
-)
-
-
-# ============================================================
-# CONTROL ANALYSIS
-# ============================================================
-
-if findings:
-
-    st.header("Findings by Security Control")
-
-    control_counts = (
-        dataframe["control"]
-        .value_counts()
-    )
-
-    st.bar_chart(
-        control_counts
-    )
-
-
-# ============================================================
+# ========================================
 # TOP RISKS
-# ============================================================
+# ========================================
 
-st.header("Top Security Risks")
+st.subheader(
+    "🚨 Top Security Risks"
+)
 
 top_risks = report.get(
     "top_risks",
     []
 )
+
 
 if top_risks:
 
@@ -379,8 +481,9 @@ if top_risks:
 
         st.write(
             f"**{number}. "
+            f"{finding_id} "
             f"[{severity}] "
-            f"{finding_id} — {name}**"
+            f"{name}**"
         )
 
         st.caption(
@@ -394,98 +497,82 @@ else:
     )
 
 
-# ============================================================
+# ========================================
 # DETAILED FINDINGS
-# ============================================================
+# ========================================
 
-st.header("Detailed Findings")
+st.subheader(
+    "📋 Detailed Findings"
+)
 
-if findings:
 
-    for finding in findings:
+for _, finding in filtered_df.iterrows():
 
-        finding_id = finding.get(
-            "finding_id",
-            "UNKNOWN"
-        )
+    finding_id = finding.get(
+        "finding_id",
+        "UNKNOWN"
+    )
 
-        severity = finding.get(
-            "severity",
-            "UNKNOWN"
-        )
+    name = finding.get(
+        "name",
+        "Unknown"
+    )
 
-        name = finding.get(
-            "name",
-            "Unknown finding"
-        )
-
-        with st.expander(
-            f"[{severity}] "
-            f"{finding_id} — {name}"
-        ):
-
-            st.write(
-                "**Status:**",
-                finding.get(
-                    "status",
-                    "UNKNOWN"
-                )
-            )
-
-            st.write(
-                "**Description:**",
-                finding.get(
-                    "description",
-                    "No description available"
-                )
-            )
-
-            st.write(
-                "**Security Control:**",
-                finding.get(
-                    "control",
-                    "Not specified"
-                )
-            )
-
-            st.write(
-                "**Reference:**",
-                finding.get(
-                    "reference",
-                    "Not specified"
-                )
-            )
-
-            st.write(
-                "**Recommendation:**",
-                finding.get(
-                    "recommendation",
-                    "No recommendation available"
-                )
-            )
-
-            st.write(
-                "**Remediation:**",
-                finding.get(
-                    "remediation",
-                    "No remediation available"
-                )
-            )
-
-else:
-
-    st.success(
-        "No detailed findings available."
+    severity = finding.get(
+        "severity",
+        "UNKNOWN"
     )
 
 
-# ============================================================
-# FOOTER
-# ============================================================
+    with st.expander(
+        f"{finding_id} — "
+        f"[{severity}] {name}"
+    ):
 
-st.divider()
+        st.write(
+            "**Status:**",
+            finding.get(
+                "status",
+                "UNKNOWN"
+            )
+        )
 
-st.caption(
-    "Cloud Security Auditor | "
-    "Read-only security configuration assessment"
-)
+        st.write(
+            "**Description:**",
+            finding.get(
+                "description",
+                "No description available"
+            )
+        )
+
+        st.write(
+            "**Security Control:**",
+            finding.get(
+                "control",
+                "Not specified"
+            )
+        )
+
+        st.write(
+            "**Reference:**",
+            finding.get(
+                "reference",
+                "Not specified"
+            )
+        )
+
+        st.write(
+            "**Recommendation:**",
+            finding.get(
+                "recommendation",
+                "No recommendation available"
+            )
+        )
+
+        st.write(
+            "**Remediation:**",
+            finding.get(
+                "remediation",
+                "No remediation available"
+            )
+        )

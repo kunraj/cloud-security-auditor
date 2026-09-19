@@ -15,7 +15,7 @@ from aws_checks import (
 
 import json
 import csv
-
+from datetime import datetime, timezone
 
 
 from checks import (
@@ -60,6 +60,35 @@ def calculate_score(findings):
     return max(score, 0)
 
 
+
+#========================================
+# AWS Account Info
+#========================================
+def get_aws_account_info():
+
+    try:
+        import boto3
+
+        sts = boto3.client("sts")
+
+        identity = sts.get_caller_identity()
+
+        return {
+            "account_id": identity.get("Account"),
+            "arn": identity.get("Arn"),
+            "user_id": identity.get("UserId")
+        }
+
+    except Exception as error:
+
+        return {
+            "account_id": "Unavailable",
+            "arn": "Unavailable",
+            "user_id": "Unavailable",
+            "error": str(error)
+        }
+
+
 # ==========================================
 # REPORT GENERATOR
 # ==========================================
@@ -69,8 +98,32 @@ def save_report(findings, score):
     summary = generate_risk_summary(findings)
     top_risks = get_top_risks(findings)
 
+    aws_account = get_aws_account_info()
+
+    scan_time = datetime.now(
+        timezone.utc
+    ).isoformat()
+
     report = {
+
+        "scan_metadata": {
+            "scan_time_utc": scan_time,
+            "account_id":
+                aws_account.get(
+                    "account_id",
+                    "Unavailable"
+                ),
+            "scanner":
+                "Cloud Security Configuration & Hardening Auditor",
+            "scanner_version": "1.0",
+            "sources": [
+                "Linux",
+                "AWS"
+            ]
+        },
+
         "security_score": score,
+
         "total_findings": len(findings),
 
         "risk_summary": summary,
