@@ -33,6 +33,9 @@ def load_report():
     except FileNotFoundError:
         return None
 
+    except json.JSONDecodeError:
+        return None
+
 
 # ========================================
 # LOAD SCAN HISTORY
@@ -49,22 +52,23 @@ def load_scan_history():
 
     for filename in os.listdir(history_dir):
 
-        if filename.endswith(".json"):
+        if not filename.endswith(".json"):
+            continue
 
-            filepath = os.path.join(
-                history_dir,
-                filename
-            )
+        filepath = os.path.join(
+            history_dir,
+            filename
+        )
 
-            try:
+        try:
 
-                with open(filepath, "r") as file:
-                    data = json.load(file)
+            with open(filepath, "r") as file:
+                data = json.load(file)
 
-                history.append(data)
+            history.append(data)
 
-            except (json.JSONDecodeError, OSError):
-                continue
+        except (json.JSONDecodeError, OSError):
+            continue
 
     history.sort(
         key=lambda x: x.get(
@@ -127,7 +131,8 @@ history = load_scan_history()
 st.title("🔐 Cloud Security Auditor")
 
 st.write(
-    "Linux and AWS Security Configuration Assessment"
+    "Linux and AWS Security Configuration "
+    "Assessment Dashboard"
 )
 
 st.caption(
@@ -144,6 +149,40 @@ st.caption(
     f"Scanner Version: "
     f"{metadata.get('scanner_version', 'Unknown')}"
 )
+
+
+# ========================================
+# RUN NEW SCAN
+# ========================================
+
+st.subheader("Security Scan")
+
+if st.button("🔄 Run New Security Scan"):
+
+    with st.spinner("Running security audit..."):
+
+        result = subprocess.run(
+            ["python3", "auditor.py"],
+            capture_output=True,
+            text=True
+        )
+
+    if result.returncode == 0:
+
+        st.success(
+            "Security scan completed successfully."
+        )
+
+        st.rerun()
+
+    else:
+
+        st.error(
+            "Security scan failed."
+        )
+
+        if result.stderr:
+            st.code(result.stderr)
 
 
 # ========================================
@@ -164,7 +203,7 @@ with col1:
 with col2:
 
     st.metric(
-        "Compliance Score",
+        "Compliance",
         f"{compliance_score}%"
     )
 
@@ -172,21 +211,30 @@ with col3:
 
     st.metric(
         "Critical",
-        summary.get("critical", 0)
+        summary.get(
+            "critical",
+            0
+        )
     )
 
 with col4:
 
     st.metric(
         "High",
-        summary.get("high", 0)
+        summary.get(
+            "high",
+            0
+        )
     )
 
 with col5:
 
     st.metric(
         "Passed",
-        summary.get("pass", 0)
+        summary.get(
+            "pass",
+            0
+        )
     )
 
 
@@ -237,19 +285,19 @@ if history:
             previous_score
         )
 
-        c1, c2, c3 = st.columns(3)
+        col1, col2, col3 = st.columns(3)
 
-        c1.metric(
+        col1.metric(
             "Previous Score",
             previous_score
         )
 
-        c2.metric(
+        col2.metric(
             "Current Score",
             current_score
         )
 
-        c3.metric(
+        col3.metric(
             "Score Change",
             f"{score_change:+.0f}"
         )
@@ -262,38 +310,72 @@ else:
 
 
 # ========================================
+# DATAFRAME
+# ========================================
+
+if findings:
+
+    df = pd.DataFrame(findings)
+
+else:
+
+    df = pd.DataFrame()
+
+
+# ========================================
+# ADD SOURCE
+# ========================================
+
+if not df.empty:
+
+    if "finding_id" in df.columns:
+
+        sources = []
+
+        for finding_id in df[
+            "finding_id"
+        ]:
+
+            finding_id = str(
+                finding_id
+            )
+
+            if finding_id.startswith("AWS"):
+
+                sources.append("AWS")
+
+            elif finding_id.startswith("LINUX"):
+
+                sources.append("Linux")
+
+            else:
+
+                sources.append("Other")
+
+        df["source"] = sources
+
+
+# ========================================
 # SIDEBAR FILTERS
 # ========================================
 
 st.sidebar.header("🔎 Filters")
 
-df = pd.DataFrame(findings)
 
 if not df.empty:
 
-    # Source
-    sources = []
+    if "severity" in df.columns:
 
-    for finding_id in df["finding_id"]:
+        severities = sorted(
+            df["severity"]
+            .dropna()
+            .unique()
+            .tolist()
+        )
 
-        if str(finding_id).startswith("AWS"):
-            sources.append("AWS")
+    else:
 
-        elif str(finding_id).startswith("LINUX"):
-            sources.append("Linux")
-
-        else:
-            sources.append("Other")
-
-    df["source"] = sources
-
-    # Severity
-    severities = sorted(
-        df["severity"]
-        .dropna()
-        .unique()
-        .tolist()
-    )
+        severities = []
 
     selected_severities = st.sidebar.multiselect(
         "Severity",
@@ -301,20 +383,39 @@ if not df.empty:
         default=severities
     )
 
-    # Source
+
+    if "source" in df.columns:
+
+        sources = sorted(
+            df["source"]
+            .dropna()
+            .unique()
+            .tolist()
+        )
+
+    else:
+
+        sources = []
+
     selected_sources = st.sidebar.multiselect(
         "Source",
-        sorted(df["source"].unique()),
-        default=sorted(df["source"].unique())
+        sources,
+        default=sources
     )
 
-    # Control
-    controls = sorted(
-        df["control"]
-        .dropna()
-        .unique()
-        .tolist()
-    )
+
+    if "control" in df.columns:
+
+        controls = sorted(
+            df["control"]
+            .dropna()
+            .unique()
+            .tolist()
+        )
+
+    else:
+
+        controls = []
 
     selected_controls = st.sidebar.multiselect(
         "Security Control",
@@ -322,20 +423,35 @@ if not df.empty:
         default=controls
     )
 
-    # Apply filters
-    filtered_df = df[
-        df["severity"].isin(
-            selected_severities
-        )
-        &
-        df["source"].isin(
-            selected_sources
-        )
-        &
-        df["control"].isin(
-            selected_controls
-        )
-    ]
+
+    filtered_df = df.copy()
+
+
+    if "severity" in filtered_df.columns:
+
+        filtered_df = filtered_df[
+            filtered_df["severity"].isin(
+                selected_severities
+            )
+        ]
+
+
+    if "source" in filtered_df.columns:
+
+        filtered_df = filtered_df[
+            filtered_df["source"].isin(
+                selected_sources
+            )
+        ]
+
+
+    if "control" in filtered_df.columns:
+
+        filtered_df = filtered_df[
+            filtered_df["control"].isin(
+                selected_controls
+            )
+        ]
 
 else:
 
@@ -343,44 +459,51 @@ else:
 
 
 # ========================================
-# SECURITY ANALYTICS
+# ANALYTICS
 # ========================================
 
 st.subheader("📊 Security Analytics")
 
 if not filtered_df.empty:
 
-    c1, c2 = st.columns(2)
+    col1, col2 = st.columns(2)
 
-    with c1:
+    with col1:
 
         st.write(
             "### Findings by Severity"
         )
 
-        severity_counts = (
-            filtered_df["severity"]
-            .value_counts()
-        )
+        if "severity" in filtered_df.columns:
 
-        st.bar_chart(
-            severity_counts
-        )
+            severity_counts = (
+                filtered_df[
+                    "severity"
+                ].value_counts()
+            )
 
-    with c2:
+            st.bar_chart(
+                severity_counts
+            )
+
+
+    with col2:
 
         st.write(
             "### Findings by Source"
         )
 
-        source_counts = (
-            filtered_df["source"]
-            .value_counts()
-        )
+        if "source" in filtered_df.columns:
 
-        st.bar_chart(
-            source_counts
-        )
+            source_counts = (
+                filtered_df[
+                    "source"
+                ].value_counts()
+            )
+
+            st.bar_chart(
+                source_counts
+            )
 
 else:
 
@@ -390,33 +513,51 @@ else:
 
 
 # ========================================
-# SECURITY FINDINGS
+# FINDINGS TABLE
 # ========================================
 
 st.subheader(
-    f"Security Findings ({len(filtered_df)})"
+    f"Security Findings "
+    f"({len(filtered_df)})"
 )
+
 
 if not filtered_df.empty:
 
-    columns = [
+    display_columns = [
+
         "finding_id",
+
         "name",
-        "source",
-        "status",
+
         "severity",
-        "control",
+
+        "status",
+
+        "source",
+
+        "framework",
+
+        "control_title",
+
         "recommendation"
     ]
 
+
     available_columns = [
+
         column
-        for column in columns
+
+        for column in display_columns
+
         if column in filtered_df.columns
     ]
 
+
     st.dataframe(
-        filtered_df[available_columns],
+        filtered_df[
+            available_columns
+        ],
         use_container_width=True,
         hide_index=True
     )
@@ -429,15 +570,18 @@ else:
 
 
 # ========================================
-# TOP SECURITY RISKS
+# TOP RISKS
 # ========================================
 
-st.subheader("🚨 Top Security Risks")
+st.subheader(
+    "🚨 Top Security Risks"
+)
 
 top_risks = report.get(
     "top_risks",
     []
 )
+
 
 if top_risks:
 
@@ -470,86 +614,124 @@ else:
 # DETAILED FINDINGS
 # ========================================
 
-st.subheader("📋 Detailed Findings")
+st.subheader(
+    "📋 Detailed Findings"
+)
 
-for _, finding in filtered_df.iterrows():
 
-    finding_id = finding.get(
-        "finding_id",
-        "UNKNOWN"
-    )
+if not filtered_df.empty:
 
-    name = finding.get(
-        "name",
-        "Unknown"
-    )
+    for _, finding in filtered_df.iterrows():
 
-    severity = finding.get(
-        "severity",
-        "UNKNOWN"
-    )
-
-    with st.expander(
-        f"{finding_id} — "
-        f"[{severity}] {name}"
-    ):
-
-        st.write(
-            "**Status:**",
-            finding.get(
-                "status",
-                "UNKNOWN"
-            )
+        finding_id = finding.get(
+            "finding_id",
+            "UNKNOWN"
         )
 
-        st.write(
-            "**Description:**",
-            finding.get(
-                "description",
-                "No description available"
-            )
+        name = finding.get(
+            "name",
+            "Unknown"
         )
 
-        st.write(
-            "**Security Control:**",
-            finding.get(
-                "control",
-                "Not specified"
-            )
+        severity = finding.get(
+            "severity",
+            "UNKNOWN"
         )
 
-        st.write(
-            "**Reference:**",
-            finding.get(
-                "reference",
-                "Not specified"
-            )
-        )
 
-        st.write(
-            "**Recommendation:**",
-            finding.get(
-                "recommendation",
-                "No recommendation available"
-            )
-        )
+        with st.expander(
+            f"{finding_id} — "
+            f"[{severity}] {name}"
+        ):
 
-        st.write(
-            "**Remediation:**",
-            finding.get(
-                "remediation",
-                "No remediation available"
+            st.write(
+                "**Status:**",
+                finding.get(
+                    "status",
+                    "UNKNOWN"
+                )
             )
-        )
+
+            st.write(
+                "**Severity:**",
+                finding.get(
+                    "severity",
+                    "UNKNOWN"
+                )
+            )
+
+            st.divider()
+
+            st.write(
+                "**Framework:**",
+                finding.get(
+                    "framework",
+                    "Not mapped"
+                )
+            )
+
+            st.write(
+                "**Control:**",
+                finding.get(
+                    "control_title",
+                    finding.get(
+                        "control",
+                        "Not mapped"
+                    )
+                )
+            )
+
+            st.write(
+                "**Control Description:**",
+                finding.get(
+                    "control_description",
+                    "N/A"
+                )
+            )
+
+            st.write(
+                "**Finding Description:**",
+                finding.get(
+                    "description",
+                    "N/A"
+                )
+            )
+
+            st.write(
+                "**Reference:**",
+                finding.get(
+                    "reference",
+                    "N/A"
+                )
+            )
+
+            st.write(
+                "**Recommendation:**",
+                finding.get(
+                    "recommendation",
+                    "N/A"
+                )
+            )
+
+            st.write(
+                "**Remediation:**",
+                finding.get(
+                    "remediation",
+                    "N/A"
+                )
+            )
 
 
 # ========================================
 # EXPORT REPORTS
 # ========================================
 
-st.subheader("📥 Export Audit Report")
+st.subheader(
+    "📥 Export Audit Report"
+)
 
 col1, col2 = st.columns(2)
+
 
 try:
 
@@ -598,7 +780,7 @@ except FileNotFoundError:
 
 
 # ========================================
-# PROFESSIONAL HTML REPORT
+# HTML REPORT
 # ========================================
 
 st.subheader(
@@ -606,8 +788,8 @@ st.subheader(
 )
 
 st.write(
-    "Generate a formatted HTML security "
-    "audit report from the latest scan."
+    "Generate a formatted HTML report "
+    "from the latest audit."
 )
 
 
@@ -615,19 +797,24 @@ if st.button(
     "Generate HTML Audit Report"
 ):
 
-    result = subprocess.run(
-        [
-            "python3",
-            "report_generator.py"
-        ],
-        capture_output=True,
-        text=True
-    )
+    with st.spinner(
+        "Generating HTML report..."
+    ):
+
+        result = subprocess.run(
+            [
+                "python3",
+                "report_generator.py"
+            ],
+            capture_output=True,
+            text=True
+        )
+
 
     if result.returncode == 0:
 
         st.success(
-            "HTML audit report generated successfully."
+            "HTML report generated successfully."
         )
 
         try:
@@ -638,6 +825,7 @@ if st.button(
             ) as file:
 
                 html_report = file.read()
+
 
             st.download_button(
                 label="Download HTML Audit Report",
@@ -663,3 +851,5 @@ if st.button(
             st.code(
                 result.stderr
             )
+
+
